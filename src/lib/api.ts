@@ -535,18 +535,30 @@ export async function generateKeywordGapReport(competitorIds?: string[]): Promis
 
 /* ----------------------------- Radar v2: Discover Pages ----------------------------- */
 
-export async function discoverPages(competitorId: string): Promise<{ discovered: number; urls: Array<{ url: string; page_type: string; label: string }> }> {
+export async function discoverPages(website: string): Promise<{ pages: Array<{ url: string; page_type: string }> }> {
   const token = await getAccessToken();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/discover-pages`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ competitorId }),
+    body: JSON.stringify({ website }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Page discovery failed (${res.status})`);
   }
   return await res.json();
+}
+
+export async function addTrackedPages(competitorId: string, pages: Array<{ url: string; page_type: string }>): Promise<void> {
+  const { error } = await supabase
+    .from('tracked_pages')
+    .insert(pages.map(p => ({
+      competitor_id: competitorId,
+      url: p.url,
+      page_type: p.page_type,
+    })));
+  
+  if (error) throw error;
 }
 
 /* ----------------------------- Radar v2: Alert Feedback ----------------------------- */
