@@ -15,6 +15,12 @@ import type {
   NewCompetitorInput,
   ChatMessage,
   ChatMessageSource,
+  SocialProfile,
+  PricingSnapshot,
+  TechStackSnapshot,
+  CompetitorGroup,
+  AlertRule,
+  MonitoredUrl,
 } from '@/types';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 
@@ -392,4 +398,179 @@ export async function sendChatMessage(
     answer: body.answer,
     sources: Array.isArray(body.sources) ? body.sources : [],
   };
+}
+
+/* ----------------------------- Radar v2: Social Profiles ----------------------------- */
+
+export async function fetchSocialProfiles(competitorId?: string): Promise<SocialProfile[]> {
+  let query = supabase
+    .from('social_profiles')
+    .select('*')
+    .order('captured_at', { ascending: false });
+  if (competitorId) query = query.eq('competitor_id', competitorId);
+  const { data, error } = await query.limit(100);
+  if (error) throw error;
+  return (data ?? []) as SocialProfile[];
+}
+
+/* ----------------------------- Radar v2: Pricing Snapshots ----------------------------- */
+
+export async function fetchPricingSnapshots(competitorId?: string): Promise<PricingSnapshot[]> {
+  let query = supabase
+    .from('pricing_snapshots')
+    .select('*')
+    .order('captured_at', { ascending: false });
+  if (competitorId) query = query.eq('competitor_id', competitorId);
+  const { data, error } = await query.limit(50);
+  if (error) throw error;
+  return (data ?? []) as PricingSnapshot[];
+}
+
+/* ----------------------------- Radar v2: Tech Stack Snapshots ----------------------------- */
+
+export async function fetchTechStackSnapshots(competitorId?: string): Promise<TechStackSnapshot[]> {
+  let query = supabase
+    .from('tech_stack_snapshots')
+    .select('*')
+    .order('captured_at', { ascending: false });
+  if (competitorId) query = query.eq('competitor_id', competitorId);
+  const { data, error } = await query.limit(50);
+  if (error) throw error;
+  return (data ?? []) as TechStackSnapshot[];
+}
+
+/* ----------------------------- Radar v2: Competitor Groups ----------------------------- */
+
+export async function fetchCompetitorGroups(): Promise<CompetitorGroup[]> {
+  const { data, error } = await supabase
+    .from('competitor_groups')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CompetitorGroup[];
+}
+
+export async function createCompetitorGroup(
+  group: { name: string; description?: string; competitor_ids: string[]; color?: string }
+): Promise<CompetitorGroup> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('competitor_groups')
+    .insert({ ...group, user_id: user?.id })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompetitorGroup;
+}
+
+/* ----------------------------- Radar v2: Alert Rules ----------------------------- */
+
+export async function fetchAlertRules(): Promise<AlertRule[]> {
+  const { data, error } = await supabase
+    .from('alert_rules')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as AlertRule[];
+}
+
+export async function createAlertRule(
+  rule: {
+    name: string;
+    rule_type: string;
+    conditions: Record<string, unknown>;
+    severity?: string;
+    competitor_id?: string;
+    notification_channels?: string[];
+  }
+): Promise<AlertRule> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('alert_rules')
+    .insert({ ...rule, user_id: user?.id })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as AlertRule;
+}
+
+export async function updateAlertRule(id: string, updates: Partial<AlertRule>): Promise<void> {
+  const { error } = await supabase.from('alert_rules').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAlertRule(id: string): Promise<void> {
+  const { error } = await supabase.from('alert_rules').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/* ----------------------------- Radar v2: Monitored URLs ----------------------------- */
+
+export async function fetchMonitoredUrls(competitorId: string): Promise<MonitoredUrl[]> {
+  const { data, error } = await supabase
+    .from('monitored_urls')
+    .select('*')
+    .eq('competitor_id', competitorId)
+    .order('page_type');
+  if (error) throw error;
+  return (data ?? []) as MonitoredUrl[];
+}
+
+/* ----------------------------- Radar v2: Battlecard Generation ----------------------------- */
+
+export async function generateBattlecard(competitorId: string): Promise<Record<string, unknown>> {
+  const token = await getAccessToken();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-battlecard`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ competitorId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Battlecard generation failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/* ----------------------------- Radar v2: Keyword Gap Report ----------------------------- */
+
+export async function generateKeywordGapReport(competitorIds?: string[]): Promise<Record<string, unknown>> {
+  const token = await getAccessToken();
+  const { data: { user } } = await supabase.auth.getUser();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/keyword-gap-report`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ userId: user?.id, competitorIds }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Keyword gap report failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/* ----------------------------- Radar v2: Discover Pages ----------------------------- */
+
+export async function discoverPages(competitorId: string): Promise<{ discovered: number; urls: Array<{ url: string; page_type: string; label: string }> }> {
+  const token = await getAccessToken();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/discover-pages`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ competitorId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Page discovery failed (${res.status})`);
+  }
+  return await res.json();
+}
+
+/* ----------------------------- Radar v2: Alert Feedback ----------------------------- */
+
+export async function updateAlertFeedback(alertId: string, feedback: 'relevant' | 'not_relevant'): Promise<void> {
+  const { error } = await supabase
+    .from('alerts')
+    .update({ feedback })
+    .eq('id', alertId);
+  if (error) throw error;
 }

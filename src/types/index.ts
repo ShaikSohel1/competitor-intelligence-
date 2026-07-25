@@ -226,3 +226,139 @@ export interface ChatMessage {
   sources?: ChatMessageSource[];
   created_at: string;
 }
+
+/* ──────── Radar v2 Types ──────── */
+
+export interface SocialProfile {
+  id: string;
+  competitor_id: string;
+  user_id: string;
+  platform: 'youtube' | 'linkedin' | 'twitter' | 'instagram' | 'facebook';
+  handle: string;
+  name: string | null;
+  followers: number | null;
+  followers_text: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  post_count: number | null;
+  engagement_rate: number | null;
+  data_source: string;
+  metadata: Record<string, unknown> | null;
+  captured_at: string;
+  created_at: string;
+}
+
+export interface PricingSnapshot {
+  id: string;
+  competitor_id: string;
+  user_id: string;
+  scan_id: string | null;
+  url: string | null;
+  plans: Array<{
+    name: string;
+    price: number | null;
+    currency: string;
+    billingPeriod: string;
+    features: string[];
+    isPopular: boolean;
+    isEnterprise: boolean;
+  }>;
+  extraction_method: string | null;
+  confidence: string | null;
+  data_source: string;
+  captured_at: string;
+  created_at: string;
+}
+
+export interface TechStackSnapshot {
+  id: string;
+  competitor_id: string;
+  user_id: string;
+  scan_id: string | null;
+  ad_networks: Array<{
+    platform: string;
+    detected: boolean;
+    pixelId?: string;
+    evidence: string;
+  }>;
+  tech_stack: Array<{
+    category: string;
+    name: string;
+    detected: boolean;
+    version?: string;
+  }>;
+  total_ad_networks: number;
+  total_tech_detected: number;
+  captured_at: string;
+  created_at: string;
+}
+
+export interface CompetitorGroup {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  competitor_ids: string[];
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertRule {
+  id: string;
+  user_id: string;
+  competitor_id: string | null;
+  name: string;
+  description: string | null;
+  rule_type: string;
+  conditions: Record<string, unknown>;
+  severity: string;
+  notification_channels: string[];
+  enabled: boolean;
+  last_triggered_at: string | null;
+  trigger_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonitoredUrl {
+  id: string;
+  competitor_id: string;
+  user_id: string;
+  url: string;
+  page_type: string;
+  label: string | null;
+  is_auto_discovered: boolean;
+  last_checked_at: string | null;
+  last_status_code: number | null;
+  last_content_hash: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdCreative {
+  id: string;
+  competitor_id: string;
+  user_id: string;
+  platform: string;
+  ad_id: string | null;
+  format: string | null;
+  headline: string | null;
+  body_text: string | null;
+  creative_url: string | null;
+  landing_url: string | null;
+  cta_text: string | null;
+  status: string;
+  impressions_estimate: string | null;
+  region: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  data_source: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface NewCompetitorInputV2 extends NewCompetitorInput {
+  pricing_url?: string;
+}

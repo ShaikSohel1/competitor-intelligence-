@@ -14,6 +14,7 @@ import {
   Settings,
   Radar,
   X,
+  GitCompareArrows,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +34,7 @@ const navItems = [
   { to: '/app/social', label: 'Social Media', icon: Share2 },
   { to: '/app/pricing', label: 'Pricing Intelligence', icon: DollarSign },
   { to: '/app/advertising', label: 'Advertising Trends', icon: Megaphone },
+  { to: '/app/comparison', label: 'Comparison', icon: GitCompareArrows },
   { to: '/app/insights', label: 'AI Insights', icon: Sparkles },
   { to: '/app/assistant', label: 'AI Assistant', icon: Bot },
   { to: '/app/alerts', label: 'Alerts', icon: Bell },

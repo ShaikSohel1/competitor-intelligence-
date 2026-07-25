@@ -11,6 +11,7 @@ import { SeoKeywordsPage } from '@/pages/SeoKeywordsPage';
 import { SocialMediaPage } from '@/pages/SocialMediaPage';
 import { PricingIntelligencePage } from '@/pages/PricingIntelligencePage';
 import { AdvertisingTrendsPage } from '@/pages/AdvertisingTrendsPage';
+import { ComparisonPage } from '@/pages/ComparisonPage';
 import { AiInsightsPage } from '@/pages/AiInsightsPage';
 import { AiAssistantPage } from '@/pages/AiAssistantPage';
 import { AlertsPage } from '@/pages/AlertsPage';
@@ -41,6 +42,7 @@ function App() {
             <Route path="social" element={<SocialMediaPage />} />
             <Route path="pricing" element={<PricingIntelligencePage />} />
             <Route path="advertising" element={<AdvertisingTrendsPage />} />
+            <Route path="comparison" element={<ComparisonPage />} />
             <Route path="insights" element={<AiInsightsPage />} />
             <Route path="assistant" element={<AiAssistantPage />} />
             <Route path="alerts" element={<AlertsPage />} />
