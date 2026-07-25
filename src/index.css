@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme - clean intelligence dashboard */
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary - deep navy */
+    --primary: 222 60% 22%;
+    --primary-foreground: 210 20% 98%;
+
+    /* Secondary - slate */
+    --secondary: 215 25% 92%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 215 25% 94%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent - teal */
+    --accent: 178 80% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 215 25% 88%;
+    --input: 215 25% 88%;
+    --ring: 178 80% 40%;
+
+    --chart-1: 178 80% 40%;
+    --chart-2: 222 60% 45%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 142 71% 45%;
+    --chart-5: 280 60% 55%;
+
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    /* Dark theme - premium intelligence command center */
+    --background: 222 47% 7%;
+    --foreground: 210 20% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 178 80% 45%;
+    --primary-foreground: 222 47% 7%;
+
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 20% 96%;
+
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 20% 60%;
+
+    --accent: 178 80% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 50%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 10%;
+    --info: 199 89% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 178 80% 45%;
+
+    --chart-1: 178 80% 45%;
+    --chart-2: 210 70% 60%;
+    --chart-3: 38 92% 55%;
+    --chart-4: 142 71% 50%;
+    --chart-5: 280 60% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: normal;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  .glass {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .text-gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--chart-2)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.4s ease-out;
+  }
+  .animate-slide-up {
+    animation: slide-up 0.5s ease-out;
+  }
+  .animate-pulse-soft {
+    animation: pulse-soft 2.5s ease-in-out infinite;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
