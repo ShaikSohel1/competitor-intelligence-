@@ -110,22 +110,6 @@ export async function scanCompetitor(competitorId: string): Promise<{ scanId: st
   return { scanId: body.scanId, summary: body.summary ?? '' };
 }
 
-export async function loadDemoData(): Promise<{ success: boolean; competitorCount: number }> {
-  const token = await getAccessToken();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/load-demo-data`, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify({}),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(body.error || `Load demo data failed (${res.status})`);
-  }
-  if (!body || body.success !== true || typeof body.competitorCount !== 'number') {
-    throw new Error('Load demo data returned an unexpected response');
-  }
-  return body as { success: true; competitorCount: number };
-}
 
 /* ----------------------------- Scans ----------------------------- */
 

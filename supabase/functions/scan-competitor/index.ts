@@ -12,12 +12,15 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
-import {
-  CompetitorRow,
-  deriveActivityEvents,
-  deriveAlerts,
-  synthesizeSnapshot,
-} from "../_shared/synthesize.ts";
+export interface CompetitorRow {
+  id: string;
+  user_id: string;
+  name: string;
+  website: string;
+  industry: string | null;
+  description: string | null;
+  tracked_keywords: string[] | null;
+}
 import { scrapeAllSocialProfiles, type SocialProfileData } from "../_shared/social-scraper.ts";
 import { runSeoAnalysis, extractOnPageSeo, type SeoScrapeResult } from "../_shared/seo-scraper.ts";
 import { scrapePricingPage, discoverPricingUrl, type ScrapedPricingResult } from "../_shared/pricing-scraper.ts";
@@ -187,29 +190,25 @@ interface ScanChannelResults {
 }
 
 function computeActivityScore(
-  snap: ReturnType<typeof synthesizeSnapshot>,
   channels: ScanChannelResults,
 ): number {
   let score = 20;
 
   // Social signals
-  score += snap.socialPosts.length * 4;
   score += channels.socialProfiles.length * 5;
+  if (channels.socialProfiles.some(p => p.recentPosts.length > 0)) score += 10;
 
   // Ad signals
-  score += snap.advertisements.length * 6;
   if (channels.adDetection) {
     score += channels.adDetection.ads.totalActiveCount * 4;
   }
 
   // Pricing signals
-  score += snap.pricingItems.filter((p) => p.change_type !== "none").length * 5;
   if (channels.pricingResult && channels.pricingResult.plans.length > 0) {
     score += 5;
   }
 
   // SEO signals
-  score += snap.seoKeywords.filter((k) => k.trend === "up").length * 3;
   score += channels.seoResult.rankings.filter(r => r.rankPosition !== null && r.rankPosition <= 10).length * 4;
 
   // Structural change signals
@@ -267,7 +266,6 @@ interface AlertRule {
 
 function evaluateAlertRules(
   rules: AlertRule[],
-  snap: ReturnType<typeof synthesizeSnapshot>,
   channels: ScanChannelResults,
   websiteChanged: boolean,
 ): Array<{ ruleId: string; title: string; message: string; category: string; priority: string }> {
@@ -276,22 +274,7 @@ function evaluateAlertRules(
   for (const rule of rules) {
     if (rule.rule_type === "price_change") {
       const changePercent = (rule.conditions.change_percent as number) ?? 0;
-      for (const item of snap.pricingItems) {
-        if (item.change_type !== "none" && item.previous_price) {
-          const pctChange = Math.abs(
-            ((item.price - item.previous_price) / item.previous_price) * 100
-          );
-          if (pctChange >= changePercent) {
-            triggered.push({
-              ruleId: rule.id,
-              title: `Rule "${rule.name}": ${item.product_name} price ${item.change_type}d`,
-              message: `Price changed by ${pctChange.toFixed(1)}% (from $${item.previous_price} to $${item.price})`,
-              category: "pricing",
-              priority: rule.severity,
-            });
-          }
-        }
-      }
+      // Removed mock pricing alert evaluation
     } else if (rule.rule_type === "website_change") {
       const categories = (rule.conditions.categories as string[]) ?? [];
       for (const change of channels.structuralChanges) {
@@ -545,7 +528,7 @@ Deno.serve(async (req: Request) => {
     }
 
     /* ── 12. Derive events & alerts ── */
-    const baseEvents = deriveActivityEvents(competitor, snap, websiteChanged, previousSeoRanks);
+    const baseEvents: Array<{ category: string; event_type: string; title: string; description: string; severity: string }> = [];
 
     // Add structural change events
     for (const change of structuralChanges) {
@@ -583,7 +566,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const baseAlerts = deriveAlerts(competitor, baseEvents);
+    const baseAlerts = baseEvents
+      .filter((e) => e.severity === "high" || e.severity === "medium")
+      .map((e) => ({
+        title: e.title,
+        message: e.description,
+        category: e.category,
+        priority: e.severity === "high" ? "high" : "medium",
+      }));
 
     /* ── 13. Evaluate user alert rules ── */
     const { data: alertRules } = await sb
@@ -595,7 +585,6 @@ Deno.serve(async (req: Request) => {
 
     const ruleTriggeredAlerts = evaluateAlertRules(
       (alertRules ?? []) as AlertRule[],
-      snap,
       channelResults,
       websiteChanged,
     );
@@ -611,45 +600,66 @@ Deno.serve(async (req: Request) => {
       })),
     ];
 
-    const activityScore = computeActivityScore(snap, channelResults);
+    const activityScore = computeActivityScore(channelResults);
     const threatLevel = computeThreatLevel(activityScore);
 
     /* ── 14. Persist to database ── */
 
     // Website snapshot with structural data
-    await sb.from("website_snapshots").insert({
-      competitor_id: competitor.id,
-      user_id: competitor.user_id,
-      scan_id: scan.id,
-      url: competitor.website,
-      ...snap.website,
-      data_source: websiteFetch.data_source,
-      changed: websiteChanged,
-      structural_snapshot: currentStructure,
-    });
+    if (websiteFetch.success && websiteFetch.website) {
+      await sb.from("website_snapshots").insert({
+        competitor_id: competitor.id,
+        user_id: competitor.user_id,
+        scan_id: scan.id,
+        url: competitor.website,
+        status_code: websiteFetch.website.status_code,
+        title: websiteFetch.website.title,
+        meta_description: websiteFetch.website.meta_description,
+        h1_count: websiteFetch.website.h1_count,
+        word_count: websiteFetch.website.word_count,
+        content_hash: websiteFetch.website.content_hash,
+        data_source: websiteFetch.data_source,
+        changed: websiteChanged,
+        structural_snapshot: currentStructure,
+      });
+    }
 
     // SEO keywords
-    const seoDataSource = seoData.rankings.length > 0 ? "live" : "demo_fallback";
-    await sb.from("seo_keywords").insert(
-      snap.seoKeywords.map((kw) => ({
+    if (seoData.rankings.length > 0) {
+      await sb.from("seo_keywords").insert(
+        seoData.rankings.map((kw) => ({
+          competitor_id: competitor.id,
+          user_id: competitor.user_id,
+          keyword: kw.keyword,
+          rank: kw.rankPosition,
+          search_volume: null,
+          difficulty: null,
+          opportunity: "medium",
+          trend: "stable",
+          previous_rank: previousSeoRanks[kw.keyword] ?? null,
+          data_source: "live",
+        })),
+      );
+    }
+
+    // Social posts (from real scraped data)
+    const socialPostsToInsert = socialProfiles.flatMap(profile => 
+      profile.recentPosts.map(post => ({
         competitor_id: competitor.id,
         user_id: competitor.user_id,
-        ...kw,
-        previous_rank: previousSeoRanks[kw.keyword] ?? null,
-        data_source: seoDataSource,
-      })),
+        platform: profile.platform,
+        content: post.content,
+        posted_at: post.publishedAt || new Date().toISOString(),
+        engagement: post.engagement,
+        sentiment: "neutral",
+        post_url: post.url,
+        data_source: "live",
+      }))
     );
 
-    // Social posts (from synthesized data, augmented with live profile data)
-    const socialDataSource = socialProfiles.length > 0 ? "live" : "demo_fallback";
-    await sb.from("social_posts").insert(
-      snap.socialPosts.map((p) => ({
-        competitor_id: competitor.id,
-        user_id: competitor.user_id,
-        ...p,
-        data_source: socialDataSource,
-      })),
-    );
+    if (socialPostsToInsert.length > 0) {
+      await sb.from("social_posts").insert(socialPostsToInsert);
+    }
 
     // Social profile snapshots (new table — real scraped data)
     if (socialProfiles.length > 0) {
@@ -674,16 +684,21 @@ Deno.serve(async (req: Request) => {
     }
 
     // Pricing items
-    const pricingDataSource = pricingData && pricingData.plans.length > 0 ? "live" : "demo_fallback";
-    await sb.from("pricing_items").insert(
-      snap.pricingItems.map((p) => ({
-        competitor_id: competitor.id,
-        user_id: competitor.user_id,
-        ...p,
-        data_source: pricingDataSource,
-      })),
-    );
-
+    if (pricingData && pricingData.plans.length > 0) {
+      await sb.from("pricing_items").insert(
+        pricingData.plans.map((p) => ({
+          competitor_id: competitor.id,
+          user_id: competitor.user_id,
+          product_name: `${competitor.name} ${p.name}`,
+          price: p.price ?? 0,
+          currency: p.currency || "USD",
+          unit: p.billingPeriod === "monthly" ? "/mo" : p.billingPeriod === "annual" ? "/yr" : "",
+          tier: p.name,
+          change_type: "none",
+          data_source: "live",
+        })),
+      );
+    }
     // Pricing snapshot (structured snapshot for historical timeline)
     if (pricingData && pricingData.plans.length > 0) {
       await sb.from("pricing_snapshots").insert({
@@ -699,16 +714,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Advertisements
-    await sb.from("advertisements").insert(
-      snap.advertisements.map((a) => ({
-        competitor_id: competitor.id,
-        user_id: competitor.user_id,
-        ...a,
-        first_seen_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-        data_source: "demo_fallback",
-      })),
-    );
 
     // Tech stack snapshot (new table — real data)
     if (adTechResult) {
@@ -759,14 +764,14 @@ Deno.serve(async (req: Request) => {
     /* ── 15. AI Analysis ── */
     const analysisParams: ScanAnalysisParams = {
       competitorName: competitor.name,
-      competitorIndustry: snap.industry,
+      competitorIndustry: competitor.industry ?? "B2B SaaS",
       competitorWebsite: competitor.website,
       websiteChanged,
       websiteSnapshot: {
-        title: snap.website.title,
-        metaDescription: snap.website.meta_description,
-        h1Count: snap.website.h1_count,
-        wordCount: snap.website.word_count,
+        title: websiteFetch.website?.title ?? "",
+        metaDescription: websiteFetch.website?.meta_description ?? "",
+        h1Count: websiteFetch.website?.h1_count ?? 0,
+        wordCount: websiteFetch.website?.word_count ?? 0,
         dataSource: websiteFetch.data_source,
       },
       structuralChanges: structuralChanges.map(c => ({
@@ -796,12 +801,8 @@ Deno.serve(async (req: Request) => {
             price: p.price,
             billingPeriod: p.billingPeriod,
           }))
-        : snap.pricingItems.map(p => ({
-            name: p.tier,
-            price: p.price,
-            billingPeriod: p.unit.includes("yr") ? "annual" : "monthly",
-          })),
-      pricingChanged: snap.pricingItems.some(p => p.change_type !== "none"),
+        : [],
+      pricingChanged: false,
       detectedAdNetworks: adTechResult
         ? adTechResult.ads.networks.filter(n => n.detected).map(n => n.platform)
         : [],
@@ -816,7 +817,7 @@ Deno.serve(async (req: Request) => {
     };
 
     const analysisPrompt = buildScanAnalysisPrompt(analysisParams);
-    const fallbackSummary = `${competitor.name} scan complete: ${baseEvents.length} activity signals detected across website, SEO, social, pricing, and advertising. Activity score ${activityScore}/100 (${threatLevel} threat). Data sources: website=${websiteFetch.data_source}, SEO=${seoDataSource}, social=${socialDataSource}, pricing=${pricingDataSource}.`;
+    const fallbackSummary = `${competitor.name} scan complete: ${baseEvents.length} activity signals detected across website, SEO, social, pricing, and advertising. Activity score ${activityScore}/100 (${threatLevel} threat).`;
     const aiSummary = (await geminiAnalysis(analysisPrompt, 1200)) ?? fallbackSummary;
 
     /* ── 16. Update scan + competitor ── */
@@ -826,13 +827,13 @@ Deno.serve(async (req: Request) => {
       ai_summary: aiSummary,
       completed_at: new Date().toISOString(),
       raw_data: {
-        industry: snap.industry,
+        industry: competitor.industry ?? "B2B SaaS",
         data_sources: {
           website: websiteFetch.data_source,
-          seo: seoDataSource,
-          social: socialDataSource,
-          pricing: pricingDataSource,
-          ads: adTechResult ? "live" : "demo_fallback",
+          seo: seoData.rankings.length > 0 ? "live" : "none",
+          social: socialProfiles.length > 0 ? "live" : "none",
+          pricing: pricingData ? "live" : "none",
+          ads: adTechResult ? "live" : "none",
         },
         scraper_results: {
           social_profiles_scraped: socialProfiles.length,
@@ -875,10 +876,10 @@ Deno.serve(async (req: Request) => {
       changesDetected: baseEvents.length,
       dataSources: {
         website: websiteFetch.data_source,
-        seo: seoDataSource,
-        social: socialDataSource,
-        pricing: pricingDataSource,
-        ads: adTechResult ? "live" : "demo_fallback",
+        seo: seoData.rankings.length > 0 ? "live" : "none",
+        social: socialProfiles.length > 0 ? "live" : "none",
+        pricing: pricingData ? "live" : "none",
+        ads: adTechResult ? "live" : "none",
       },
       scraperResults: {
         socialProfilesScraped: socialProfiles.length,

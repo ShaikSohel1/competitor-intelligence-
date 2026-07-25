@@ -40,7 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { generateExecutiveSummary } from '@/lib/api';
 import { EmptyState } from '@/components/EmptyState';
 import { useToast } from '@/hooks/use-toast';
-import { loadDemoData } from '@/lib/api';
+
 import { threatStyle, formatRelativeTime } from '@/lib/format';
 import type { ThreatLevel } from '@/types';
 
@@ -91,7 +91,6 @@ export function DashboardPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [generatingSummary, setGeneratingSummary] = useState(false);
-  const [loadingDemoData, setLoadingDemoData] = useState(false);
 
   const stats = useMemo(() => {
     const totalCompetitors = competitors.length;
@@ -129,26 +128,7 @@ export function DashboardPage() {
     }
   }
 
-  async function handleLoadDemoData() {
-    if (!user) return;
-    setLoadingDemoData(true);
-    try {
-      const result = await loadDemoData();
-      toast({
-        title: 'Demo data loaded',
-        description: `Added ${result.competitorCount} demo competitors to your workspace.`,
-      });
-      await refresh();
-    } catch (err) {
-      toast({
-        title: 'Failed to load demo data',
-        description: err instanceof Error ? err.message : 'Unexpected error',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoadingDemoData(false);
-    }
-  }
+
 
   if (loading) {
     return (
@@ -186,10 +166,6 @@ export function DashboardPage() {
               <Button onClick={() => navigate('/app/competitors')}>
                 <Plus className="mr-2 h-4 w-4" /> Add a competitor
               </Button>
-              <Button onClick={handleLoadDemoData} disabled={loadingDemoData}>
-                {loadingDemoData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Load demo data
-              </Button>
             </div>
           }
         />
@@ -206,10 +182,6 @@ export function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={refresh}>
               <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-            </Button>
-            <Button size="sm" onClick={handleLoadDemoData} disabled={loadingDemoData}>
-              {loadingDemoData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Load demo data
             </Button>
           </div>
         }

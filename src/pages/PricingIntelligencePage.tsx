@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DollarSign, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { DollarSign, RefreshCw, Clock, ShieldCheck } from 'lucide-react';
 import { useCompetitorList } from '@/hooks/useCompetitorList';
-import { fetchPricingItems } from '@/lib/api';
+import { fetchPricingSnapshots } from '@/lib/api';
 import { CompetitorFilter } from '@/components/CompetitorFilter';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
@@ -27,23 +27,22 @@ import {
   Tooltip,
 } from 'recharts';
 import { ChartTooltip } from '@/components/ChartTooltip';
-import { formatCurrency, formatDate, changeTypeLabel, changeTypeStyle } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import type { PricingItem, Competitor } from '@/types';
+import { formatCurrency, formatDate } from '@/lib/format';
+import type { PricingSnapshot, Competitor } from '@/types';
 
 export function PricingIntelligencePage() {
   const { competitors, loading: compsLoading } = useCompetitorList();
   const [filter, setFilter] = useState('all');
-  const [items, setItems] = useState<PricingItem[]>([]);
+  const [snapshots, setSnapshots] = useState<PricingSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchPricingItems(filter === 'all' ? undefined : filter, 200);
-      setItems(data);
+      const data = await fetchPricingSnapshots(filter === 'all' ? undefined : filter);
+      setSnapshots(data || []);
     } catch {
-      setItems([]);
+      setSnapshots([]);
     } finally {
       setLoading(false);
     }
@@ -56,42 +55,56 @@ export function PricingIntelligencePage() {
   const competitorMap: Record<string, Competitor> = {};
   for (const c of competitors) competitorMap[c.id] = c;
 
+  // Flatten plans from latest snapshots per competitor
+  const latestSnapshots = useMemo(() => {
+    const latest: Record<string, PricingSnapshot> = {};
+    for (const snap of snapshots) {
+      if (!latest[snap.competitor_id] || new Date(snap.captured_at) > new Date(latest[snap.competitor_id].captured_at)) {
+        latest[snap.competitor_id] = snap;
+      }
+    }
+    return Object.values(latest);
+  }, [snapshots]);
+
+  const allLatestPlans = useMemo(() => {
+    return latestSnapshots.flatMap((snap) => 
+      snap.plans.map((plan) => ({
+        ...plan,
+        competitor_id: snap.competitor_id,
+        captured_at: snap.captured_at,
+        data_source: snap.data_source,
+      }))
+    );
+  }, [latestSnapshots]);
+
   const stats = useMemo(() => {
-    const increases = items.filter((p) => p.change_type === 'increase').length;
-    const decreases = items.filter((p) => p.change_type === 'decrease').length;
-    const changed = increases + decreases;
-    return { increases, decreases, changed, total: items.length };
-  }, [items]);
+    const totalPlans = allLatestPlans.length;
+    const avgPrice = totalPlans ? allLatestPlans.reduce((acc, p) => acc + (p.price || 0), 0) / totalPlans : 0;
+    return { totalPlans, avgPrice, totalSnapshots: snapshots.length };
+  }, [allLatestPlans, snapshots]);
 
   const competitorPricing = useMemo(() => {
     const byComp: Record<string, { name: string; avgPrice: number; count: number }> = {};
-    for (const p of items) {
+    for (const p of allLatestPlans) {
       const comp = competitorMap[p.competitor_id];
       const name = comp?.name ?? 'Unknown';
       if (!byComp[p.competitor_id]) byComp[p.competitor_id] = { name, avgPrice: 0, count: 0 };
-      byComp[p.competitor_id].avgPrice += p.price;
+      byComp[p.competitor_id].avgPrice += (p.price || 0);
       byComp[p.competitor_id].count += 1;
     }
     return Object.values(byComp).map((b) => ({
       name: b.name.length > 12 ? b.name.slice(0, 11) + '…' : b.name,
-      avgPrice: Number((b.avgPrice / b.count).toFixed(2)),
+      avgPrice: b.count ? Number((b.avgPrice / b.count).toFixed(2)) : 0,
     }));
-  }, [items, competitorMap]);
+  }, [allLatestPlans, competitorMap]);
 
-  const renderSourceBadge = (row: { data_source?: string | null; metadata?: Record<string, unknown> | null }) => {
-    const demo = row.data_source === 'demo_fallback' || row.metadata?.demo === true;
-    return (
-      <Badge variant={demo ? 'outline' : 'default'}>
-        {demo ? 'Demo Intelligence' : 'Live Data'}
-      </Badge>
-    );
-  };
+
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Pricing Intelligence"
-        description="Track competitor pricing changes, tiers, and positioning across products."
+        description="Track competitor pricing plans, tiers, and positioning across products."
         actions={
           <div className="flex items-center gap-2">
             <CompetitorFilter competitors={competitors} value={filter} onChange={setFilter} />
@@ -108,22 +121,21 @@ export function PricingIntelligencePage() {
         <EmptyState icon={DollarSign} title="No competitors tracked" description="Add competitors first to track their pricing." />
       ) : loading ? (
         <Skeleton className="h-72" />
-      ) : items.length === 0 ? (
+      ) : snapshots.length === 0 ? (
         <EmptyState icon={DollarSign} title="No pricing data yet" description="Run a scan on a competitor to capture pricing information." />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-4">
-            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Pricing items</p><p className="mt-2 text-3xl font-bold tabular-nums">{stats.total}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Price changes</p><p className="mt-2 text-3xl font-bold tabular-nums text-warning">{stats.changed}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Increases</p><p className="mt-2 flex items-center gap-1 text-3xl font-bold tabular-nums text-success"><TrendingUp className="h-5 w-5" />{stats.increases}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Decreases</p><p className="mt-2 flex items-center gap-1 text-3xl font-bold tabular-nums text-destructive"><TrendingDown className="h-5 w-5" />{stats.decreases}</p></CardContent></Card>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Total Snapshots</p><p className="mt-2 text-[32px] font-light tracking-[-0.64px] tnum">{stats.totalSnapshots}</p></CardContent></Card>
+            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Total Plans Tracked (Latest)</p><p className="mt-2 text-[32px] font-light tracking-[-0.64px] tnum text-info">{stats.totalPlans}</p></CardContent></Card>
+            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Avg Plan Price</p><p className="mt-2 flex items-center gap-1 text-[32px] font-light tracking-[-0.64px] tnum text-success">{formatCurrency(stats.avgPrice, 'USD')}</p></CardContent></Card>
           </div>
 
           {competitorPricing.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Average Price by Competitor</CardTitle>
-                <CardDescription>Mean price across tracked products</CardDescription>
+                <CardTitle className="text-base">Average Plan Price by Competitor</CardTitle>
+                <CardDescription>Mean price across tracked plans in the latest snapshot</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-64">
@@ -142,44 +154,74 @@ export function PricingIntelligencePage() {
           )}
 
           <Card>
-            <CardHeader><CardTitle className="text-base">Pricing Details</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Latest Plans Extracted</CardTitle></CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product</TableHead>
                     <TableHead>Competitor</TableHead>
-                    <TableHead>Tier</TableHead>
+                    <TableHead>Plan Name</TableHead>
                     <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Previous</TableHead>
-                    <TableHead>Change</TableHead>
-                    <TableHead>Captured</TableHead>
+                    <TableHead>Billing</TableHead>
+                    <TableHead>Highlights</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.product_name}</TableCell>
-                      <TableCell className="text-muted-foreground">{competitorMap[p.competitor_id]?.name ?? (p as unknown as { competitor?: { name?: string } }).competitor?.name ?? '—'}</TableCell>
-                      <TableCell><Badge variant="outline">{p.tier ?? '—'}</Badge></TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(p.price, p.currency)}</TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">{p.previous_price ? formatCurrency(p.previous_price, p.currency) : '—'}</TableCell>
+                  {allLatestPlans.map((p, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{competitorMap[p.competitor_id]?.name ?? '—'}</TableCell>
+                      <TableCell>{p.name}</TableCell>
+                      <TableCell className="text-right font-medium tnum tracking-[-0.42px]">{p.price != null ? formatCurrency(p.price, p.currency) : 'Contact Sales'}</TableCell>
+                      <TableCell className="text-muted-foreground">{p.billingPeriod}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className={cn('inline-flex items-center gap-1 text-xs font-medium', changeTypeStyle(p.change_type))}>
-                            {p.change_type === 'increase' && <TrendingUp className="h-3 w-3" />}
-                            {p.change_type === 'decrease' && <TrendingDown className="h-3 w-3" />}
-                            {p.change_type === 'none' && <Minus className="h-3 w-3" />}
-                            {changeTypeLabel(p.change_type)}
-                          </span>
-                          {renderSourceBadge(p)}
+                        <div className="flex gap-2">
+                          {p.isPopular && <Badge variant="secondary">Popular</Badge>}
+                          {p.isEnterprise && <Badge variant="outline">Enterprise</Badge>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{formatDate(p.captured_at)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Snapshot History</CardTitle>
+              <CardDescription>Timeline of all pricing data captures</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {snapshots.map((snap) => (
+                  <div key={snap.id} className="flex flex-col gap-2 p-4 border rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold text-sm">{competitorMap[snap.competitor_id]?.name ?? 'Unknown'}</h4>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                          <Clock className="h-3 w-3" /> {formatDate(snap.captured_at)}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        {snap.extraction_method && (
+                          <Badge variant="outline" className="flex gap-1 items-center">
+                            {snap.extraction_method}
+                          </Badge>
+                        )}
+                        {snap.confidence && (
+                          <Badge variant="secondary" className="flex gap-1 items-center">
+                            <ShieldCheck className="h-3 w-3" /> {snap.confidence} Confidence
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm mt-2">
+                      <span className="text-muted-foreground">Plans extracted: </span>
+                      <span className="font-medium">{snap.plans.length}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </>

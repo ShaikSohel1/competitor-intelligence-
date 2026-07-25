@@ -9,81 +9,87 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'SF Pro Display', 'system-ui', '-apple-system', 'sans-serif'],
+      },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        xs: '4px',
+        sm: '6px',
+        md: '8px',
+        lg: '12px',
+        xl: '16px',
+        pill: '9999px',
       },
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        // Stripi Tokens
+        primary: {
+          DEFAULT: '#533afd',
+          deep: '#4434d4',
+          press: '#2e2b8c',
+          soft: '#665efd',
+          subdued: '#b9b9f9',
+          foreground: '#ffffff',
+        },
+        'brand-dark-900': '#1c1e54',
+        ink: {
+          DEFAULT: '#0d253d',
+          secondary: '#273951',
+          mute: '#64748d',
+          'mute-2': '#61718a',
+        },
+        canvas: {
+          DEFAULT: '#ffffff',
+          soft: '#f6f9fc',
+          cream: '#f5e9d4',
+        },
+        hairline: {
+          DEFAULT: '#e3e8ee',
+          input: '#a8c3de',
+        },
+        ruby: '#ea2261',
+        magenta: '#f96bee',
+        lemon: '#9b6829',
+        'shadow-blue': '#003770',
+
+        // Shadcn compatibility mappings
+        background: '#ffffff',
+        foreground: '#0d253d',
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: '#ffffff',
+          foreground: '#0d253d',
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: '#ffffff',
+          foreground: '#0d253d',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: '#f6f9fc',
+          foreground: '#273951',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: '#f6f9fc',
+          foreground: '#64748d',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: '#f6f9fc',
+          foreground: '#0d253d',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: '#ea2261',
+          foreground: '#ffffff',
         },
-        success: {
-          DEFAULT: 'hsl(var(--success))',
-          foreground: 'hsl(var(--success-foreground))',
-        },
-        warning: {
-          DEFAULT: 'hsl(var(--warning))',
-          foreground: 'hsl(var(--warning-foreground))',
-        },
-        info: {
-          DEFAULT: 'hsl(var(--info))',
-          foreground: 'hsl(var(--info-foreground))',
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
-        },
+        border: '#e3e8ee',
+        input: '#a8c3de',
+        ring: '#533afd',
       },
       keyframes: {
         'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
         },
         'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
         },
       },
       animation: {

@@ -90,7 +90,7 @@ export function ComparisonPage() {
   const unselectedComps = competitors.filter(c => !selectedIds.includes(c.id));
 
   // --- Pricing Data Processing ---
-  const allTiers = Array.from(new Set(Object.values(pricing).flat().map(p => p.tier_name)));
+  const allTiers = Array.from(new Set(Object.values(pricing).flat().map(p => p.tier).filter(Boolean) as string[]));
   
   // --- Social Data Processing ---
   const allPlatforms = Array.from(new Set(Object.values(social).flat().map(s => s.platform)));
@@ -99,7 +99,7 @@ export function ComparisonPage() {
       const dataPoint: any = { platform };
       selectedComps.forEach(c => {
         const profile = social[c.id]?.find(s => s.platform === platform);
-        dataPoint[c.name] = profile ? profile.followers_count : 0;
+        dataPoint[c.name] = profile ? profile.followers : 0;
       });
       return dataPoint;
     });
@@ -116,7 +116,7 @@ export function ComparisonPage() {
   };
   
   const renderTrend = (k: SeoKeyword) => {
-    if (!k.previous_rank) return null;
+    if (k.rank == null || k.previous_rank == null) return null;
     if (k.rank < k.previous_rank) return <TrendingUp className="w-3 h-3 text-success inline ml-1" />;
     if (k.rank > k.previous_rank) return <TrendingDown className="w-3 h-3 text-destructive inline ml-1" />;
     return <Minus className="w-3 h-3 text-muted-foreground inline ml-1" />;
@@ -152,7 +152,6 @@ export function ComparisonPage() {
       <PageHeader
         title="Competitor Comparison"
         description="Compare up to 5 competitors across multiple dimensions"
-        icon={<GitCompareArrows className="w-8 h-8 text-primary" />}
       />
 
       <Card>
@@ -195,7 +194,7 @@ export function ComparisonPage() {
 
       {selectedIds.length === 0 ? (
         <EmptyState
-          icon={<GitCompareArrows className="w-12 h-12 text-muted-foreground" />}
+          icon={GitCompareArrows}
           title="No Competitors Selected"
           description="Select at least two competitors to see a detailed comparison."
         />
@@ -244,7 +243,7 @@ export function ComparisonPage() {
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Last Scanned:</span>
-                          <span>{formatRelativeTime(comp.last_scan_date)}</span>
+                          <span>{formatRelativeTime(comp.last_scanned_at)}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -281,12 +280,12 @@ export function ComparisonPage() {
                           <TableRow key={tier}>
                             <TableCell className="font-medium capitalize whitespace-nowrap">{tier}</TableCell>
                             {selectedComps.map(c => {
-                              const item = pricing[c.id]?.find(p => p.tier_name === tier);
+                              const item = pricing[c.id]?.find(p => p.tier === tier);
                               if (!item) return <TableCell key={c.id} className="text-muted-foreground">-</TableCell>;
                               return (
                                 <TableCell key={c.id}>
                                   <div className="font-bold">${item.price} {item.currency}</div>
-                                  <div className="text-xs text-muted-foreground mt-0.5">{item.billing_period}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5">{item.unit || ''}</div>
                                   {item.change_type && item.change_type !== 'none' && (
                                     <Badge variant="outline" className="mt-1.5 text-[10px] px-1 py-0 h-4">
                                       {item.change_type}
@@ -336,7 +335,7 @@ export function ComparisonPage() {
                                 const profile = social[c.id]?.find(s => s.platform === platform);
                                 return (
                                   <TableCell key={c.id}>
-                                    {profile ? profile.followers_count.toLocaleString() : '-'}
+                                    {profile ? (profile.followers || 0).toLocaleString() : '-'}
                                   </TableCell>
                                 );
                               })}

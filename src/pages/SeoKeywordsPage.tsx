@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Search, RefreshCw, TrendingUp, TrendingDown, Minus, Wand2 } from 'lucide-react';
 import { useCompetitorList } from '@/hooks/useCompetitorList';
-import { fetchSeoKeywords } from '@/lib/api';
+import { fetchSeoKeywords, generateKeywordGapReport } from '@/lib/api';
 import { CompetitorFilter } from '@/components/CompetitorFilter';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
@@ -9,6 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -36,6 +43,10 @@ export function SeoKeywordsPage() {
   const [filter, setFilter] = useState('all');
   const [keywords, setKeywords] = useState<SeoKeyword[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [gapReportOpen, setGapReportOpen] = useState(false);
+  const [generatingGap, setGeneratingGap] = useState(false);
+  const [gapReport, setGapReport] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,13 +85,22 @@ export function SeoKeywordsPage() {
     return { up, down, high, avgRank };
   }, [keywords]);
 
-  const renderSourceBadge = (row: { data_source?: string | null; metadata?: Record<string, unknown> | null }) => {
-    const demo = row.data_source === 'demo_fallback' || row.metadata?.demo === true;
-    return (
-      <Badge variant={demo ? 'outline' : 'default'}>
-        {demo ? 'Demo Intelligence' : 'Live Data'}
-      </Badge>
-    );
+
+
+  const handleGenerateGapReport = async () => {
+    setGapReportOpen(true);
+    setGeneratingGap(true);
+    try {
+      const report = await generateKeywordGapReport(
+        filter === 'all' ? competitors.map(c => c.id) : [filter]
+      );
+      setGapReport(report);
+    } catch (err) {
+      console.error(err);
+      setGapReport({ error: 'Failed to generate gap report' });
+    } finally {
+      setGeneratingGap(false);
+    }
   };
 
   return (
@@ -91,12 +111,63 @@ export function SeoKeywordsPage() {
         actions={
           <div className="flex items-center gap-2">
             <CompetitorFilter competitors={competitors} value={filter} onChange={setFilter} />
+            <Button variant="secondary" size="sm" onClick={handleGenerateGapReport}>
+              <Wand2 className="mr-2 h-4 w-4" /> Generate Gap Report
+            </Button>
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className="mr-2 h-4 w-4" /> Refresh
             </Button>
           </div>
         }
       />
+
+      <Dialog open={gapReportOpen} onOpenChange={setGapReportOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Keyword Gap Report</DialogTitle>
+            <DialogDescription>
+              AI-generated analysis of missing keyword opportunities.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {generatingGap ? (
+            <div className="py-12 flex flex-col items-center justify-center space-y-4">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Analyzing competitor keywords...</p>
+            </div>
+          ) : gapReport?.error ? (
+            <div className="py-8 text-center text-destructive">{gapReport.error}</div>
+          ) : gapReport ? (
+            <div className="space-y-4">
+              {gapReport.summary && (
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <h4 className="font-semibold mb-2">Executive Summary</h4>
+                  <p className="text-sm">{gapReport.summary}</p>
+                </div>
+              )}
+              
+              {gapReport.opportunities && Array.isArray(gapReport.opportunities) && (
+                <div>
+                  <h4 className="font-semibold mb-3">Top Keyword Opportunities</h4>
+                  <div className="space-y-3">
+                    {gapReport.opportunities.map((opp: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center p-3 border rounded-md">
+                        <div>
+                          <p className="font-medium">{opp.keyword || opp.topic}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{opp.reasoning || opp.description}</p>
+                        </div>
+                        {opp.difficulty && (
+                          <Badge variant="outline" className="ml-4 whitespace-nowrap">Difficulty: {opp.difficulty}</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {compsLoading ? (
         <Skeleton className="h-72" />
@@ -165,7 +236,7 @@ export function SeoKeywordsPage() {
                             k.opportunity === 'high' && 'border-success/30 text-success',
                             k.opportunity === 'medium' && 'border-info/30 text-info',
                           )}>{k.opportunity}</Badge>
-                          {renderSourceBadge(k)}
+
                         </div>
                       </TableCell>
                       <TableCell>

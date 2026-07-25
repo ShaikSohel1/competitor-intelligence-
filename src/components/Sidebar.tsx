@@ -59,23 +59,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-card transition-transform duration-300 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-transparent bg-brand-dark-900 text-on-primary transition-transform duration-300 lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-5">
+        <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
           <NavLink to="/app/dashboard" className="flex items-center gap-2.5" onClick={onClose}>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary shadow-sm">
               <Radar className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-base font-bold leading-none">CompeteIQ</p>
-              <p className="text-[10px] text-muted-foreground">Competitor Intelligence</p>
+              <p className="text-base font-semibold leading-none text-white tracking-[-0.2px]">Radar</p>
+              <p className="text-[10px] text-primary-subdued mt-1">Intelligence Platform</p>
             </div>
           </NavLink>
           <button
             onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted lg:hidden"
+            className="rounded-md p-1.5 text-primary-subdued hover:bg-white/10 lg:hidden"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -92,18 +92,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 to={to}
                 onClick={onClose}
                 className={cn(
-                  'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                  'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'text-primary-subdued hover:bg-white/5 hover:text-white'
                 )}
               >
-                <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground')} />
+                <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-on-primary' : 'text-primary-subdued group-hover:text-white')} />
                 <span className="flex-1">{label}</span>
                 {showBadge && (
                   <span className={cn(
                     'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold',
-                    isActive ? 'bg-primary-foreground text-primary' : 'bg-destructive text-destructive-foreground'
+                    isActive ? 'bg-on-primary text-primary' : 'bg-ruby text-white'
                   )}>
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
@@ -113,16 +113,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           })}
         </nav>
 
-        <div className="border-t p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-            <Avatar className="h-9 w-9">
-              <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+        <div className="border-t border-white/10 p-3">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors cursor-pointer">
+            <Avatar className="h-9 w-9 border border-white/20">
+              <AvatarFallback className="bg-primary/20 text-xs font-semibold text-white">
                 {user?.email?.slice(0, 2).toUpperCase() ?? 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium">{user?.email ?? 'User'}</p>
-              <p className="text-[10px] text-muted-foreground">Pro plan</p>
+              <p className="truncate text-[13px] font-medium text-white">{user?.email ?? 'User'}</p>
+              <p className="text-[11px] text-primary-subdued">Pro plan</p>
             </div>
           </div>
         </div>

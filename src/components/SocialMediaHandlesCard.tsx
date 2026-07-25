@@ -239,10 +239,10 @@ export function SocialMediaHandlesCard({
                         <div className="flex items-center justify-between mt-2 pt-2 border-t text-sm">
                           <div className="flex items-center space-x-1 font-semibold">
                             <Users className="h-4 w-4 text-muted-foreground" />
-                            <span>{formatCompactNumber(profile.follower_count || 0)}</span>
+                            <span>{formatCompactNumber(profile.followers || 0)}</span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {formatRelativeTime(profile.last_scraped_at)}
+                            {formatRelativeTime(profile.captured_at)}
                           </div>
                         </div>
                       ) : (

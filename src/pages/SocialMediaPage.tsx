@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Share2, RefreshCw, Heart, MessageCircle, Repeat2 } from 'lucide-react';
 import { useCompetitorList } from '@/hooks/useCompetitorList';
-import { fetchSocialPosts } from '@/lib/api';
+import { fetchSocialPosts, fetchSocialProfiles } from '@/lib/api';
 import { CompetitorFilter } from '@/components/CompetitorFilter';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
@@ -26,7 +26,7 @@ import {
 import { ChartTooltip } from '@/components/ChartTooltip';
 import { formatRelativeTime, initials, sentimentStyle } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { SocialPost, Competitor } from '@/types';
+import type { SocialPost, Competitor, SocialProfile } from '@/types';
 
 const PLATFORM_COLORS: Record<string, string> = {
   LinkedIn: 'hsl(var(--info))',
@@ -46,15 +46,21 @@ export function SocialMediaPage() {
   const { competitors, loading: compsLoading } = useCompetitorList();
   const [filter, setFilter] = useState('all');
   const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [profiles, setProfiles] = useState<SocialProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchSocialPosts(filter === 'all' ? undefined : filter, 100);
-      setPosts(data);
+      const [fetchedPosts, fetchedProfiles] = await Promise.all([
+        fetchSocialPosts(filter === 'all' ? undefined : filter, 100),
+        fetchSocialProfiles(filter === 'all' ? undefined : filter)
+      ]);
+      setPosts(fetchedPosts);
+      setProfiles(fetchedProfiles);
     } catch {
       setPosts([]);
+      setProfiles([]);
     } finally {
       setLoading(false);
     }
@@ -69,9 +75,15 @@ export function SocialMediaPage() {
 
   const platformData = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const p of posts) counts[p.platform] = (counts[p.platform] ?? 0) + 1;
+    if (profiles.length > 0) {
+      for (const p of profiles) {
+        counts[p.platform] = (counts[p.platform] ?? 0) + (p.followers || 0);
+      }
+    } else {
+      for (const p of posts) counts[p.platform] = (counts[p.platform] ?? 0) + 1;
+    }
     return Object.entries(counts).map(([platform, value]) => ({ platform, value }));
-  }, [posts]);
+  }, [posts, profiles]);
 
   const sentimentData = useMemo(() => {
     const counts = { positive: 0, neutral: 0, negative: 0 };
@@ -94,14 +106,17 @@ export function SocialMediaPage() {
     );
   }, [posts]);
 
-  const renderSourceBadge = (row: { data_source?: string | null; metadata?: Record<string, unknown> | null }) => {
-    const demo = row.data_source === 'demo_fallback' || row.metadata?.demo === true;
-    return (
-      <Badge variant={demo ? 'outline' : 'default'}>
-        {demo ? 'Demo Intelligence' : 'Live Data'}
-      </Badge>
+  const profileMetrics = useMemo(() => {
+    return profiles.reduce(
+      (acc, p) => ({
+        followers: acc.followers + (p.followers || 0),
+        posts: acc.posts + (p.post_count || 0),
+      }),
+      { followers: 0, posts: 0 }
     );
-  };
+  }, [profiles]);
+
+
 
   return (
     <div className="space-y-6">
@@ -124,22 +139,22 @@ export function SocialMediaPage() {
         <EmptyState icon={Share2} title="No competitors tracked" description="Add competitors first to monitor their social media." />
       ) : loading ? (
         <Skeleton className="h-72" />
-      ) : posts.length === 0 ? (
-        <EmptyState icon={Share2} title="No social posts yet" description="Run a scan on a competitor to capture social media activity." />
+      ) : posts.length === 0 && profiles.length === 0 ? (
+        <EmptyState icon={Share2} title="No social data yet" description="Run a scan on a competitor to capture social media profiles and activity." />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-4">
+            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Profiles tracked</p><p className="mt-2 text-3xl font-bold tabular-nums">{profiles.length}</p></CardContent></Card>
+            <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Total followers</p><p className="mt-2 text-3xl font-bold tabular-nums">{profileMetrics.followers.toLocaleString()}</p></CardContent></Card>
             <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Posts captured</p><p className="mt-2 text-3xl font-bold tabular-nums">{posts.length}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Heart className="h-4 w-4" /> Total likes</div><p className="mt-2 text-3xl font-bold tabular-nums">{totalEngagement.likes.toLocaleString()}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><MessageCircle className="h-4 w-4" /> Comments</div><p className="mt-2 text-3xl font-bold tabular-nums">{totalEngagement.comments.toLocaleString()}</p></CardContent></Card>
-            <Card><CardContent className="p-5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Repeat2 className="h-4 w-4" /> Shares</div><p className="mt-2 text-3xl font-bold tabular-nums">{totalEngagement.shares.toLocaleString()}</p></CardContent></Card>
+            <Card><CardContent className="p-5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Heart className="h-4 w-4" /> Total engagements</div><p className="mt-2 text-3xl font-bold tabular-nums">{(totalEngagement.likes + totalEngagement.comments + totalEngagement.shares).toLocaleString()}</p></CardContent></Card>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Posts by Platform</CardTitle>
-                <CardDescription>Distribution of captured social activity</CardDescription>
+                <CardTitle className="text-base">{profiles.length > 0 ? 'Followers by Platform' : 'Posts by Platform'}</CardTitle>
+                <CardDescription>{profiles.length > 0 ? 'Total followers across profiles' : 'Distribution of captured social activity'}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-56">
@@ -149,7 +164,7 @@ export function SocialMediaPage() {
                       <XAxis dataKey="platform" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
-                      <Bar dataKey="value" name="Posts" radius={[6, 6, 0, 0]} fill="hsl(var(--chart-5))" />
+                      <Bar dataKey="value" name={profiles.length > 0 ? 'Followers' : 'Posts'} radius={[6, 6, 0, 0]} fill="hsl(var(--chart-5))" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -194,7 +209,7 @@ export function SocialMediaPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">{comp?.name ?? 'Unknown'}</span>
                         <Badge variant="secondary" className="text-[10px]">{p.platform}</Badge>
-                        {renderSourceBadge(p)}
+
                         <span className="text-xs text-muted-foreground">{formatRelativeTime(p.posted_at)}</span>
                         <span className={cn('text-xs font-medium', sentimentStyle(p.sentiment))}>· {p.sentiment}</span>
                       </div>

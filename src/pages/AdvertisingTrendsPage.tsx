@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Megaphone, RefreshCw } from 'lucide-react';
 import { useCompetitorList } from '@/hooks/useCompetitorList';
-import { fetchAdvertisements } from '@/lib/api';
+import { fetchAdvertisements, fetchTechStackSnapshots } from '@/lib/api';
 import { CompetitorFilter } from '@/components/CompetitorFilter';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
@@ -28,21 +28,27 @@ import {
 } from 'recharts';
 import { ChartTooltip } from '@/components/ChartTooltip';
 import { formatCurrency, formatRelativeTime } from '@/lib/format';
-import type { Advertisement, Competitor } from '@/types';
+import type { Advertisement, Competitor, TechStackSnapshot } from '@/types';
 
 export function AdvertisingTrendsPage() {
   const { competitors, loading: compsLoading } = useCompetitorList();
   const [filter, setFilter] = useState('all');
   const [ads, setAds] = useState<Advertisement[]>([]);
+  const [snapshots, setSnapshots] = useState<TechStackSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAdvertisements(filter === 'all' ? undefined : filter, 100);
-      setAds(data);
+      const [adsData, snapshotsData] = await Promise.all([
+        fetchAdvertisements(filter === 'all' ? undefined : filter, 100),
+        fetchTechStackSnapshots(filter === 'all' ? undefined : filter),
+      ]);
+      setAds(adsData);
+      setSnapshots(snapshotsData);
     } catch {
       setAds([]);
+      setSnapshots([]);
     } finally {
       setLoading(false);
     }
@@ -61,17 +67,29 @@ export function AdvertisingTrendsPage() {
     return Object.entries(counts).map(([platform, count]) => ({ platform, count }));
   }, [ads]);
 
+  const activeAdPixels = useMemo(() => {
+    const latestPerComp = new Map<string, TechStackSnapshot>();
+    for (const snap of snapshots) {
+      if (!latestPerComp.has(snap.competitor_id)) {
+        latestPerComp.set(snap.competitor_id, snap);
+      }
+    }
+    const pixels = [];
+    for (const snap of latestPerComp.values()) {
+      const compName = competitorMap[snap.competitor_id]?.name ?? 'Unknown';
+      for (const net of snap.ad_networks || []) {
+        if (net.detected) {
+          pixels.push({ ...net, compName });
+        }
+      }
+    }
+    return pixels;
+  }, [snapshots, competitorMap]);
+
   const activeCount = ads.filter((a) => a.status === 'active').length;
   const totalBudget = ads.reduce((sum, a) => sum + (a.budget_estimate ?? 0), 0);
 
-  const renderSourceBadge = (row: { data_source?: string | null; metadata?: Record<string, unknown> | null }) => {
-    const demo = row.data_source === 'demo_fallback' || row.metadata?.demo === true;
-    return (
-      <Badge variant={demo ? 'outline' : 'default'}>
-        {demo ? 'Demo Intelligence' : 'Live Data'}
-      </Badge>
-    );
-  };
+
 
   return (
     <div className="space-y-6">
@@ -94,7 +112,7 @@ export function AdvertisingTrendsPage() {
         <EmptyState icon={Megaphone} title="No competitors tracked" description="Add competitors first to monitor their advertising." />
       ) : loading ? (
         <Skeleton className="h-72" />
-      ) : ads.length === 0 ? (
+      ) : ads.length === 0 && snapshots.length === 0 ? (
         <EmptyState icon={Megaphone} title="No advertising data yet" description="Run a scan on a competitor to detect ad campaigns." />
       ) : (
         <>
@@ -103,6 +121,25 @@ export function AdvertisingTrendsPage() {
             <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Active campaigns</p><p className="mt-2 text-3xl font-bold tabular-nums text-success">{activeCount}</p></CardContent></Card>
             <Card><CardContent className="p-5"><p className="text-sm text-muted-foreground">Est. total spend</p><p className="mt-2 text-3xl font-bold tabular-nums">{formatCurrency(totalBudget)}</p></CardContent></Card>
           </div>
+
+          {activeAdPixels.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Active Ad Pixels</CardTitle>
+                <CardDescription>Detected tracking pixels across latest snapshots</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {activeAdPixels.map((p, i) => (
+                    <Badge key={i} variant="secondary" className="flex flex-col items-start px-3 py-1.5 h-auto gap-1">
+                      <span className="font-semibold">{p.platform}</span>
+                      <span className="text-xs text-muted-foreground">{p.compName}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {platformData.length > 0 && (
             <Card>
@@ -134,7 +171,7 @@ export function AdvertisingTrendsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">{a.platform}</Badge>
                       <Badge variant="outline" className="ml-2">{a.ad_type}</Badge>
-                      {renderSourceBadge(a)}
+
                     </div>
                     <Badge variant={a.status === 'active' ? 'default' : 'secondary'} className={a.status === 'active' ? 'bg-success/15 text-success' : ''}>
                       {a.status}
